@@ -451,7 +451,13 @@ async function startServer() {
   // Vite middleware setup
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // HMR relies on a WebSocket that cannot be proxied in this preview,
+        // which surfaces as "WebSocket closed without opened" errors.
+        // Disable it so the client stops attempting that connection.
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
