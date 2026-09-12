@@ -17,7 +17,33 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Build a local user profile — no server, no fetch. Logging in just moves
+  // the app to the next screen with a ready-to-use profile.
+  const buildLocalUser = (opts: {
+    email: string;
+    name?: string;
+    avatar?: AvatarType;
+  }): UserProfile => {
+    const namePart = (opts.name || opts.email.split('@')[0] || 'Volunteer').trim();
+    const codeSeed = namePart.split(/\s+/)[0].toUpperCase().slice(0, 6) || 'BAL';
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    return {
+      id: `local-${Date.now()}`,
+      email: opts.email,
+      name: namePart,
+      avatar: opts.avatar || 'boy',
+      referralCode: `BAL-${codeSeed}${suffix}`,
+      credits: 0,
+      verifiedHours: 0,
+      completedSessionsCount: 0,
+      badge: 'None',
+      sessions: [],
+      donations: [],
+      referredCount: 0,
+    };
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!email || !password) {
@@ -25,50 +51,19 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
-      const body = isSignUp
-        ? { email, password, name, avatar, referralCode: referralCode.trim() }
-        : { email, password };
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to authenticate');
-      }
-
-      onSuccess(data.user);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    onSuccess(
+      buildLocalUser({
+        email,
+        name: isSignUp ? name : undefined,
+        avatar: isSignUp ? avatar : undefined,
+      })
+    );
   };
 
-  const handleDemoLogin = async (demoEmail: string) => {
-    setLoading(true);
+  const handleDemoLogin = (demoEmail: string) => {
     setError(null);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: demoEmail, password: 'demo-password-123' }),
-      });
-      const data = await res.json();
-      if (res.ok && data.user) {
-        onSuccess(data.user);
-      }
-    } catch (err: any) {
-      setError('Demo login failed. Please enter your email manually.');
-    } finally {
-      setLoading(false);
-    }
+    const demoName = demoEmail.startsWith('parent') ? 'Demo Parent' : 'Demo Volunteer';
+    onSuccess(buildLocalUser({ email: demoEmail, name: demoName }));
   };
 
   return (
