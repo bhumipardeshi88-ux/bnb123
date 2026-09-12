@@ -6,6 +6,7 @@
 process.env.DISABLE_HMR = 'true';
 
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { INITIAL_ADOPTION_CENTERS, VOLUNTEER_OPPORTUNITIES } from './src/data/seedData';
@@ -465,9 +466,33 @@ async function startServer() {
         // Disable it so the client stops attempting that connection.
         hmr: false,
       },
-      appType: 'spa',
+      // Use 'custom' (not 'spa') so Vite does not auto-serve index.html. We
+      // serve it ourselves below after stripping the injected @vite/client
+      // script — that script unconditionally opens an HMR WebSocket on load,
+      // and since it cannot be proxied here it throws "WebSocket closed
+      // without opened". Removing the tag prevents the connection entirely.
+      appType: 'custom',
     });
+
     app.use(vite.middlewares);
+
+    // Serve index.html for all non-asset routes with the Vite HMR client removed.
+    app.use('*', async (req, res, next) => {
+      try {
+        const templatePath = path.resolve(process.cwd(), 'index.html');
+        let template = fs.readFileSync(templatePath, 'utf-8');
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+        // Strip the auto-injected Vite client that opens the failing HMR WebSocket.
+        template = template.replace(
+          /<script[^>]*\ssrc="\/@vite\/client"[^>]*><\/script>\s*/g,
+          ''
+        );
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (err) {
+        vite.ssrFixStacktrace(err as Error);
+        next(err);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
