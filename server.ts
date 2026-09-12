@@ -1,3 +1,10 @@
+// Vite's HMR WebSocket cannot be proxied in this preview (Vite runs in
+// middleware mode behind the Express server), which surfaces in the browser as
+// "WebSocket closed without opened". vite.config.ts reads DISABLE_HMR to turn
+// HMR and file-watching off, so set it before Vite loads that config. This must
+// run before createViteServer, otherwise the config file re-enables HMR.
+process.env.DISABLE_HMR = 'true';
+
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
